@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Don't Say the Same Word as Me</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F3FF; --surface:#FFFFFF; --ink:#24103F; --muted:#66587F; --line:#DCD3EE;
+  --pink:#D81B68; --on-pink:#FFFFFF; --pink-soft:#FFE3EE;
+  --mint:#0B7F57; --mint-soft:#D8F5E8; --sun:#FFD93D;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#170C2A; --surface:#231240; --ink:#F4EEFF; --muted:#B3A3D1; --line:#3B2663;
+    --pink:#FF5C9A; --on-pink:#2A0A1B; --pink-soft:#4A1535;
+    --mint:#3DDC97; --mint-soft:#0F3A2B;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#170C2A; --surface:#231240; --ink:#F4EEFF; --muted:#B3A3D1; --line:#3B2663;
+  --pink:#FF5C9A; --on-pink:#2A0A1B; --pink-soft:#4A1535;
+  --mint:#3DDC97; --mint-soft:#0F3A2B;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;min-height:100vh}
+.wrap{max-width:780px;margin:0 auto;padding:20px 16px 56px}
+h1,h2,h3{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;margin:0;letter-spacing:-.02em;line-height:1.1}
+h2{font-size:22px;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand h1{font-size:clamp(20px,4.6vw,30px);font-weight:800}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--muted);font:600 14px 'Instrument Sans',system-ui,sans-serif;padding:8px 18px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:16px}
+.stack>*+*{margin-top:14px}
+.notice{border:1.5px solid var(--pink);background:var(--pink-soft);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:15px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:12px 20px;font:600 16px 'Instrument Sans',system-ui,sans-serif;background:var(--ink);color:var(--bg);cursor:pointer}
+.btn.pink{background:var(--pink);color:var(--on-pink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{padding:7px 12px;font-size:14px;border-radius:10px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row.grow>*:first-child{flex:1 1 200px}
+label.f{display:block;font-weight:600;font-size:14px;margin:0 0 6px}
+input[type=text],input[type=password],input[type=number],select{width:100%;font:500 17px 'Instrument Sans',system-ui,sans-serif;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-.02em;padding:14px 16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:15px}
+.check input{margin-top:4px;width:18px;height:18px;accent-color:var(--pink)}
+.auth{max-width:460px;margin:0 auto}
+.prompt{background:var(--sun);color:#2A1550;border-radius:22px;padding:22px 22px 24px;border:2px solid #2A1550}
+.prompt .round{font-weight:600;font-size:15px}
+.prompt .q{font:800 clamp(30px,8vw,52px)/1.02 'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-.03em;margin-top:6px;overflow-wrap:anywhere}
+.timer{display:inline-block;font:700 18px 'Bricolage Grotesque','Instrument Sans',sans-serif;font-variant-numeric:tabular-nums;background:#2A1550;color:var(--sun);border-radius:999px;padding:4px 14px;margin-top:14px}
+.statusbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px}
+.statusbar .who{font:700 20px 'Bricolage Grotesque','Instrument Sans',sans-serif}
+.hearts{color:var(--pink);letter-spacing:2px;font-size:20px}
+.hearts b{font-weight:400}
+.result{border-radius:20px;padding:20px;border:2px solid var(--line);margin-bottom:16px}
+.result.safe{background:var(--mint-soft);border-color:var(--mint)}
+.result.collision,.result.missed{background:var(--pink-soft);border-color:var(--pink)}
+.result h2{font-size:clamp(26px,6vw,36px);font-weight:800}
+.winner{background:var(--ink);color:var(--bg);border-radius:20px;padding:20px;margin-bottom:16px}
+.winner h2{font-size:clamp(26px,6vw,36px);font-weight:800}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:14px}
+.g{border-radius:18px;padding:14px 16px;border:2px solid var(--line);background:var(--surface);animation:slam .45s cubic-bezier(.2,1.4,.4,1) both;animation-delay:calc(var(--i)*80ms)}
+.g.collision{background:var(--pink-soft);border-color:var(--pink)}
+.g.safe{background:var(--mint-soft);border-color:var(--mint)}
+.g.host{background:var(--sun);border-color:#2A1550;color:#2A1550}
+.g.host .gn{color:#2A1550}
+.g .gw{font:800 28px/1.05 'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-.02em;overflow-wrap:anywhere}
+.g .gm{font-size:14px;font-weight:600;margin-top:6px}
+.g .gn{font-size:14px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+@keyframes slam{from{opacity:0;transform:scale(1.18) rotate(-1.5deg)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.g{animation:none}}
+.board{list-style:none;margin:12px 0 0;padding:0}
+.board li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.board li:first-child{border-top:0}
+.board .nm{flex:1 1 auto;font-weight:600;overflow-wrap:anywhere}
+.board li.out .nm{text-decoration:line-through;color:var(--muted)}
+.board .pt{font-variant-numeric:tabular-nums;color:var(--muted);min-width:56px;text-align:right}
+.progress{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.progress li{border:1.5px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px;font-weight:600;color:var(--muted)}
+.progress li.done{border-color:var(--mint);background:var(--mint-soft);color:var(--ink)}
+.admin-grid{display:grid;gap:16px}
+@media (min-width:820px){.admin-grid{grid-template-columns:1.25fr 1fr;align-items:start}.admin-grid .card{margin-bottom:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 64 40" width="54" height="34" aria-hidden="true">
+        <circle cx="22" cy="20" r="16" fill="#E8307A" fill-opacity=".92"/>
+        <circle cx="42" cy="20" r="16" fill="#FFD93D" fill-opacity=".92"/>
+        <path d="M32 7.5A16 16 0 0 1 32 32.5A16 16 0 0 1 32 7.5z" fill="#24103F"/>
+      </svg>
+      <h1>Don't Say the Same Word as Me</h1>
+    </div>
+    <div class="row" id="userBar" hidden>
+      <span class="muted small" id="userName"></span>
+      <button class="btn ghost sm" id="logoutBtn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <div class="notice" id="banner" role="status" hidden></div>
+
+  <!-- LOGIN -->
+  <section id="authView" class="auth" hidden>
+    <div class="seg" role="group" aria-label="Account type" style="margin-bottom:16px">
+      <button type="button" id="tabPlayer" aria-pressed="true">Player</button>
+      <button type="button" id="tabHost" aria-pressed="false">Host</button>
+    </div>
+    <div class="card stack">
+      <h2 id="authTitle">Play the game</h2>
+      <p class="muted small" id="authHelp">Create an account the first time, then log in with the same username and password.</p>
+      <div><label class="f" for="uIn">Username</label><input type="text" id="uIn" maxlength="40" autocomplete="username" autocapitalize="off"></div>
+      <div><label class="f" for="pIn">Password</label><input type="password" id="pIn" maxlength="100" autocomplete="current-password"></div>
+      <div class="row">
+        <button class="btn pink" id="loginBtn" type="button">Log in</button>
+        <button class="btn ghost" id="signupBtn" type="button">Create account</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAYER -->
+  <section id="playerView" hidden>
+    <div class="statusbar">
+      <div class="who" id="pWho"></div>
+      <div class="row"><span id="pHearts"></span><span class="muted" id="pPoints"></span></div>
+    </div>
+
+    <div id="pLobby" class="card stack">
+      <h2>You're in</h2>
+      <p class="muted" id="pLobbyText"></p>
+    </div>
+
+    <div id="pOpen" hidden>
+      <div class="prompt">
+        <div class="round" id="pRound"></div>
+        <div class="q" id="pPrompt"></div>
+        <div class="timer" id="pTimer" hidden></div>
+      </div>
+      <div class="card stack" style="margin-top:16px" id="pForm">
+        <p id="pRule"></p>
+        <div>
+          <label class="f" for="wordIn">Your word</label>
+          <input type="text" class="word" id="wordIn" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="row"><button class="btn pink" id="lockBtn" type="button">Lock in word</button></div>
+        <p class="small muted" id="pLocked" aria-live="polite"></p>
+      </div>
+      <div class="card" id="pOut" hidden>
+        <h2>You're out</h2>
+        <p class="muted" style="margin-top:8px">You ran out of lives. Stay on this page to watch the rest of the game.</p>
+      </div>
+    </div>
+
+    <div id="pReveal" hidden>
+      <div id="pWinner" class="winner" hidden></div>
+      <div id="pResult" class="result"></div>
+      <div class="card">
+        <h2 id="pRevealTitle"></h2>
+        <div class="groups" id="pGroups"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Scoreboard</h2>
+      <ol class="board" id="pBoard"></ol>
+    </div>
+  </section>
+
+  <!-- HOST -->
+  <section id="hostView" hidden>
+    <div class="winner" id="aWinner" hidden></div>
+    <div class="admin-grid">
+      <div class="stack">
+        <div class="card stack">
+          <h2 id="aStatus"></h2>
+          <p class="muted small" id="aSub"></p>
+        </div>
+
+        <div class="card stack" id="aSetup">
+          <h2 id="aSetupTitle">Next round</h2>
+          <div id="aPromptWrap" class="row grow">
+            <div><label class="f" for="promptIn">Prompt players answer with one word</label><input type="text" id="promptIn" maxlength="80" autocomplete="off"></div>
+            <button class="btn ghost" id="shuffleBtn" type="button">Shuffle prompt</button>
+          </div>
+          <div>
+            <label class="f" for="modeIn">Game mode</label>
+            <select id="modeIn">
+              <option value="players">Players against each other</option>
+              <option value="host">Players against the host</option>
+            </select>
+            <p class="small muted" id="modeHint" style="margin-top:6px"></p>
+          </div>
+          <div class="grid3">
+            <div><label class="f" for="timerIn">Timer</label>
+              <select id="timerIn">
+                <option value="0">No timer</option>
+                <option value="20">20 seconds</option>
+                <option value="30">30 seconds</option>
+                <option value="45">45 seconds</option>
+                <option value="60">60 seconds</option>
+              </select></div>
+            <div><label class="f" for="livesIn">Lives each</label><input type="number" id="livesIn" min="1" max="9" value="3"></div>
+          </div>
+          <p class="small muted">Set lives to 1 if a collision should knock a player out straight away.</p>
+          <label class="check"><input type="checkbox" id="plurIn" checked><span>Count simple plurals as the same word (apple and apples match)</span></label>
+          <div class="row">
+            <button class="btn pink" id="startBtn" type="button">Start round 1</button>
+            <button class="btn ghost" id="newBtn" type="button" hidden>Start a new game</button>
+          </div>
+          <p class="small muted" id="startHint"></p>
+        </div>
+
+        <div class="card stack" id="aLive" hidden>
+          <div class="prompt">
+            <div class="round" id="aRound"></div>
+            <div class="q" id="aPrompt"></div>
+            <div class="timer" id="aTimer" hidden></div>
+          </div>
+          <p id="aCount" class="small" aria-live="polite"></p>
+          <ul class="progress" id="aProgress"></ul>
+          <div class="stack" id="hostWordBox">
+            <div><label class="f" for="hostWordIn">Your word (players must not say it)</label>
+            <input type="text" class="word" id="hostWordIn" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+            <div class="row"><button class="btn ghost" id="hostLockBtn" type="button">Lock in my word</button></div>
+            <p class="small muted" id="hostLocked" aria-live="polite"></p>
+          </div>
+          <div class="row"><button class="btn pink" id="revealBtn" type="button">Reveal words</button></div>
+          <p class="small muted" id="aTimerNote" hidden>The words reveal automatically when the timer ends.</p>
+        </div>
+
+        <div class="card" id="aResults" hidden>
+          <h2 id="aResultsTitle"></h2>
+          <div class="groups" id="aGroups"></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <h2>Players</h2>
+          <ol class="board" id="aRoster"></ol>
+          <p class="muted small" id="aRosterEmpty">Nobody has signed up yet.</p>
+        </div>
+        <div class="card stack">
+          <h2>Invite players</h2>
+          <p class="small muted">Send everyone this page's address. They create a player account and join the game.</p>
+          <div class="row"><input type="text" id="linkBox" readonly aria-label="Join link"><button class="btn ghost sm" id="copyBtn" type="button">Copy link</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var $ = function(s){ return document.querySelector(s); };
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
+  var PROMPTS = ['A fruit','A pizza topping','An animal you would see at a zoo','A colour','A country in Europe','A car brand','A breakfast food','A pet','A sport played with a ball','A Bollywood movie','A vegetable','A cricketer','A city in India','A musical instrument','Something you find in a kitchen','A superhero','A drink','A programming language','A month of the year','Something you carry in a bag','A school subject','A fast food chain','A flower','A body part','A street food','A thing that is round','A dessert','A job','Something that flies','A board game','A type of weather','A festival','A social media app','A mode of transport','Something you do on weekends'];
+
+  var modeTouched=false, hostInputKey='', st=null, polling=false, pollTimer=null, offset=0, hostMode=false, inputKey='', lastPrompt='', newArmed=false, newTimer=null, busy=false;
+
+  function randPrompt(){ var p,t=0; do{ p=PROMPTS[Math.floor(Math.random()*PROMPTS.length)]; t++; }while(p===lastPrompt&&t<8); lastPrompt=p; return p; }
+  function banner(m){ var b=$('#banner'); if(!m){ b.hidden=true; return; } b.textContent=m; b.hidden=false; }
+  function heartsHtml(l,max){ l=Math.max(0,l); max=Math.max(max,l); return '<span class="hearts" role="img" aria-label="'+l+' of '+max+' lives"><b>'+'\u2665'.repeat(l)+'</b>'+'\u2661'.repeat(max-l)+'</span>'; }
+  function fmt(sec){ var m=Math.floor(sec/60), s=sec%60; return m+':'+(s<10?'0':'')+s; }
+
+  async function api(path, body){
+    var opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})};
+    var r; try{ r=await fetch(path,opts); }catch(e){ banner('Could not reach the server. Check your connection.'); return null; }
+    var j={}; try{ j=await r.json(); }catch(e){}
+    if(!r.ok){ banner(j.error||'Something went wrong.'); if(r.status===401 && st){ st=null; showAuth(); } return null; }
+    banner(''); if(polling) poll(); return j;
+  }
+
+  /* ---- auth ---- */
+  function setHostMode(on){
+    hostMode=on;
+    $('#tabPlayer').setAttribute('aria-pressed',String(!on));
+    $('#tabHost').setAttribute('aria-pressed',String(on));
+    $('#authTitle').textContent = on ? 'Host login' : 'Play the game';
+    $('#authHelp').textContent = on ? 'Only the person running the game has these details.' : 'Create an account the first time, then log in with the same username and password.';
+    $('#signupBtn').hidden = on;
+    $('#pIn').setAttribute('autocomplete', on?'current-password':'current-password');
+  }
+  function showAuth(msg){
+    polling=false; clearTimeout(pollTimer);
+    st=null;
+    $('#authView').hidden=false; $('#playerView').hidden=true; $('#hostView').hidden=true; $('#userBar').hidden=true;
+    if(msg) banner(msg);
+  }
+  async function submitAuth(kind){
+    var u=$('#uIn').value.trim(), p=$('#pIn').value;
+    if(!u||!p){ banner('Enter a username and password.'); return; }
+    if(busy) return; busy=true;
+    var path = hostMode ? '/api/admin/login' : (kind==='signup' ? '/api/register' : '/api/login');
+    var r = await api(path,{username:u,password:p});
+    busy=false;
+    if(r){ $('#pIn').value=''; connect(); }
+  }
+
+  function connect(){
+    $('#authView').hidden=true;
+    polling=true; poll();
+  }
+  async function poll(){
+    clearTimeout(pollTimer);
+    if(!polling) return;
+    try{
+      var r=await fetch('/api/state',{cache:'no-store'});
+      if(r.status===401){ showAuth('Your session ended. Log in again.'); return; }
+      var j=await r.json();
+      if(!r.ok) throw new Error(j.error||'error');
+      st=j; offset=j.serverNow-Date.now();
+      if($('#banner').textContent==='Reconnecting to the game...') banner('');
+      render();
+    }catch(e){ banner('Reconnecting to the game...'); }
+    if(polling){
+      var delay=document.hidden?8000:((st&&st.game.phase==='open')?1500:2500);
+      pollTimer=setTimeout(poll,delay);
+    }
+  }
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden&&polling) poll(); });
+
+  /* ---- render ---- */
+  function boardHtml(withRemove){
+    var g=st.game;
+    return st.board.slice().sort(function(a,b){ return b.points-a.points||b.lives-a.lives||String(a.name).localeCompare(b.name); }).map(function(r){
+      return '<li class="'+(r.lives<=0?'out':'')+'"><span class="nm">'+esc(r.name)+'</span>'+heartsHtml(r.lives,g.lives)+'<span class="pt">'+r.points+(r.points===1?' pt':' pts')+'</span>'+
+        (withRemove?'<button class="btn ghost sm" data-rm="'+esc(r.id)+'" type="button">Remove</button>':'')+'</li>';
+    }).join('');
+  }
+  function renderGroups(el,g){
+    var sig=g.gameId+':'+g.round+':'+g.phase+':'+g.results.length;
+    if(el.getAttribute('data-sig')===sig) return;
+    el.setAttribute('data-sig',sig);
+    var by={}, order=[], missed=[];
+    g.results.forEach(function(r){
+      if(r.status==='missed'){ missed.push(r); return; }
+      if(!by[r.key]){ by[r.key]={word:r.word,names:[],collision:false,host:false,players:0}; order.push(r.key); }
+      var x=by[r.key];
+      if(r.uid==='host'){ x.host=true; x.names.unshift('Host'); x.word=r.word; }
+      else { x.players++; x.names.push(r.name); if(r.status==='collision') x.collision=true; }
+    });
+    order.sort(function(a,b){ var A=by[a],B=by[b]; if(A.collision!==B.collision) return A.collision?-1:1; return B.names.length-A.names.length; });
+    var i=0, html='';
+    order.forEach(function(k){
+      var x=by[k];
+      var cls=x.collision?'collision':(x.players?'safe':'host');
+      var msg;
+      if(x.collision) msg=x.host?'Matched the host. Each player loses a life.':(x.players+' players matched. Each loses a life.');
+      else if(!x.players) msg='The host\u2019s word. Nobody said it.';
+      else if(x.players>1) msg='Same word, but it was not the host\u2019s. +1 point each.';
+      else msg='Safe. +1 point.';
+      html+='<div class="g '+cls+'" style="--i:'+(i++)+'"><div class="gw">'+esc(x.word)+'</div><div class="gm">'+msg+'</div><div class="gn">'+x.names.map(esc).join(', ')+'</div></div>';
+    });
+    if(missed.length) html+='<div class="g collision" style="--i:'+(i++)+'"><div class="gw">No word</div><div class="gm">Did not lock in. Each loses a life.</div><div class="gn">'+missed.map(function(r){return esc(r.name);}).join(', ')+'</div></div>';
+    el.innerHTML=html||'<p class="muted">Nobody played this round.</p>';
+  }
+  function winnerHtml(g,hint){ return '<h2>'+(g.winners.length>1?'Winners: ':'Winner: ')+esc(g.winners.join(', '))+'</h2><p style="margin-top:8px;opacity:.85">'+hint+'</p>'; }
+
+  function render(){
+    if(!st) return;
+    $('#authView').hidden=true;
+    $('#userBar').hidden=false;
+    $('#userName').textContent = st.role==='admin' ? 'Host' : st.me.name;
+    $('#playerView').hidden = st.role!=='player';
+    $('#hostView').hidden = st.role!=='admin';
+    if(st.role==='player') renderPlayer(); else renderHost();
+    tick();
+  }
+
+  function renderPlayer(){
+    var g=st.game, me=st.me;
+    var row=st.board.filter(function(r){return r.id===me.id;})[0]||{lives:g.lives,points:0};
+    var out=row.lives<=0;
+    $('#pWho').textContent=me.name;
+    $('#pHearts').innerHTML=heartsHtml(row.lives,g.lives);
+    $('#pPoints').textContent=row.points+(row.points===1?' point':' points');
+    $('#pLobby').hidden=g.phase!=='lobby';
+    $('#pOpen').hidden=g.phase!=='open';
+    $('#pReveal').hidden=g.phase!=='revealed';
+    if(g.phase==='lobby') $('#pLobbyText').textContent=st.board.length+(st.board.length===1?' player has':' players have')+' joined. Waiting for the host to start round '+(g.round+1)+'.';
+    if(g.phase==='open'){
+      $('#pRound').textContent='Round '+g.round;
+      $('#pPrompt').textContent=g.prompt;
+      $('#pForm').hidden=out; $('#pOut').hidden=!out;
+      $('#pRule').textContent=g.mode==='host'?'Do not say the same word as the host. Everyone else is safe.':'Do not say the same word as another player.';
+      var inp=$('#wordIn'), k=g.gameId+':'+g.round;
+      if(k!==inputKey){ inputKey=k; inp.value=me.word||''; }
+      else if(me.word && !inp.value && document.activeElement!==inp) inp.value=me.word;
+      $('#lockBtn').textContent=me.word?'Change word':'Lock in word';
+      $('#pLocked').textContent=me.word?('Locked in: '+me.word+'. You can change it until the words are revealed.'):'Type a word and lock it in. If anyone else picks the same word, you both lose a life.';
+    }
+    if(g.phase==='revealed'){
+      $('#pRevealTitle').textContent='Round '+g.round+': '+g.prompt;
+      var r=g.results.filter(function(x){return x.uid===me.id;})[0], box=$('#pResult');
+      if(!r){ box.className='result'; box.innerHTML='<h2>You sat this round out</h2><p class="muted" style="margin-top:8px">'+(out?'You are out of lives.':'You joined after the round started.')+'</p>'; }
+      else if(r.status==='safe'){ box.className='result safe'; box.innerHTML='<h2>Safe</h2><p style="margin-top:8px">'+(g.mode==='host'?'You did not say the host\u2019s word. You get a point.':'Nobody else said \u201c'+esc(r.word)+'\u201d. You get a point.')+'</p>'; }
+      else if(r.status==='collision'){
+        var others=g.results.filter(function(x){return x.key===r.key&&x.uid!==me.id&&x.uid!=='host';}).length;
+        var hm=g.results.some(function(x){return x.uid==='host'&&x.key===r.key;});
+        var plural=others+(others===1?' other player':' other players');
+        var q='\u201c'+esc(r.word)+'\u201d';
+        var txt=g.mode==='host'?('You said the host\u2019s word: '+q+'. You lose a life.'):hm?(others?('You matched the host and '+plural+' with '+q+'. You lose a life.'):('You said the same word as the host: '+q+'. You lose a life.')):(plural+' also said '+q+'. You lose a life.');
+        box.className='result collision'; box.innerHTML='<h2>Collision</h2><p style="margin-top:8px">'+txt+'</p>';
+      }
+      else { box.className='result missed'; box.innerHTML='<h2>No word</h2><p style="margin-top:8px">You did not lock in a word in time. You lose a life.</p>'; }
+      renderGroups($('#pGroups'),g);
+      var w=$('#pWinner'); if(g.finished){ w.hidden=false; w.innerHTML=winnerHtml(g,'The game is over. The host can start a new one.'); } else w.hidden=true;
+    }
+    $('#pBoard').innerHTML=boardHtml(false);
+  }
+
+  function renderHost(){
+    var g=st.game, phase=g.phase, open=phase==='open';
+    $('#aStatus').textContent = g.finished?'Game over':(open?'Round '+g.round+' is open':(phase==='revealed'?'Round '+g.round+' revealed':'Lobby'));
+    $('#aSub').textContent=st.board.length+(st.board.length===1?' player':' players')+' signed up.';
+    var w=$('#aWinner'); if(g.finished){ w.hidden=false; w.innerHTML=winnerHtml(g,'Start a new game to play again with the same players.'); } else w.hidden=true;
+    $('#aSetup').hidden=open; $('#aLive').hidden=!open; $('#aResults').hidden=phase!=='revealed';
+    if(!open){
+      $('#aSetupTitle').textContent=g.finished?'New game':(g.round===0?'First round':'Next round');
+      $('#aPromptWrap').hidden=g.finished;
+      $('#startBtn').hidden=g.finished;
+      $('#startBtn').textContent='Start round '+(g.round+1);
+      $('#newBtn').hidden=g.round===0;
+      if(!newArmed) $('#newBtn').textContent='Start a new game';
+      var locked=g.round>0&&!g.finished;
+      $('#livesIn').disabled=locked;
+      if(!modeTouched) $('#modeIn').value=g.mode||'players';
+      showModeHint();
+      if(!$('#promptIn').value&&!g.finished) $('#promptIn').value=randPrompt();
+      $('#startBtn').disabled=st.board.length<2;
+      $('#startHint').textContent=st.board.length<2?'You need at least 2 players to start a round.':(locked?'Lives are fixed once a game has started.':'');
+    } else {
+      $('#aRound').textContent='Round '+g.round;
+      $('#aPrompt').textContent=g.prompt;
+      var done=st.progress.filter(function(p){return p.done;}).length;
+      $('#aCount').textContent=done+' of '+st.progress.length+' players have locked in a word.';
+      $('#aProgress').innerHTML=st.progress.map(function(p){ return '<li class="'+(p.done?'done':'')+'">'+esc(p.name)+(p.done?' \u2713':'')+'</li>'; }).join('');
+      $('#aTimerNote').hidden=!g.endsAt;
+      var hostMode=g.mode==='host';
+      $('#hostWordBox').hidden=!hostMode;
+      $('#revealBtn').disabled=hostMode&&!st.hostWord;
+      var hin=$('#hostWordIn'), hk=g.gameId+':'+g.round;
+      if(hk!==hostInputKey){ hostInputKey=hk; hin.value=st.hostWord||''; }
+      else if(st.hostWord && !hin.value && document.activeElement!==hin) hin.value=st.hostWord;
+      $('#hostLockBtn').textContent=st.hostWord?'Change my word':'Lock in my word';
+      $('#hostLocked').textContent=st.hostWord?('Locked in: '+st.hostWord+'. Any player who says it loses a life. You can change it until you reveal.'):'Lock in your word before you reveal. Any player who says it loses a life.';
+    }
+    if(phase==='revealed'){ $('#aResultsTitle').textContent='Round '+g.round+': '+g.prompt; renderGroups($('#aGroups'),g); }
+    $('#aRoster').innerHTML=boardHtml(true);
+    $('#aRosterEmpty').hidden=st.board.length>0;
+    $('#linkBox').value=location.origin+'/';
+  }
+
+  function tick(){
+    if(!st) return;
+    var g=st.game, show=g.phase==='open'&&g.endsAt>0, txt='', over=false;
+    if(show){ var rem=Math.max(0,Math.ceil((g.endsAt-(Date.now()+offset))/1000)); over=rem===0; txt=rem>0?fmt(rem):'Time is up'; }
+    ['#pTimer','#aTimer'].forEach(function(id){ var el=$(id); el.hidden=!show; if(show) el.textContent=txt; });
+    $('#wordIn').disabled=over; $('#lockBtn').disabled=over;
+  }
+  setInterval(tick,250);
+
+  /* ---- actions ---- */
+  function lockWord(){
+    var w=$('#wordIn').value.replace(/\s+/g,' ').trim();
+    if(!w){ $('#wordIn').focus(); return; }
+    api('/api/word',{word:w});
+  }
+  function showModeHint(){
+    $('#modeHint').textContent=$('#modeIn').value==='host'
+      ? 'You lock in a word. Only players who say the same word as you lose a life.'
+      : 'Players who say the same word as another player lose a life.';
+  }
+  function hostLock(){
+    var w=$('#hostWordIn').value.replace(/\s+/g,' ').trim();
+    if(!w){ $('#hostWordIn').focus(); return; }
+    api('/api/admin/hostword',{word:w});
+  }
+  function startRound(){
+    var p=$('#promptIn').value.trim(); if(!p){ $('#promptIn').focus(); return; }
+    api('/api/admin/start',{prompt:p,mode:$('#modeIn').value,timerSec:$('#timerIn').value,lives:$('#livesIn').value,forgiving:$('#plurIn').checked}).then(function(r){ if(r) $('#promptIn').value=''; });
+  }
+  function armNew(){
+    var b=$('#newBtn');
+    if(!newArmed && !(st&&st.game.finished)){ newArmed=true; b.textContent='Click again to reset scores'; clearTimeout(newTimer); newTimer=setTimeout(function(){ newArmed=false; b.textContent='Start a new game'; },4000); return; }
+    newArmed=false; clearTimeout(newTimer); b.textContent='Start a new game';
+    api('/api/admin/new-game',{mode:$('#modeIn').value,lives:$('#livesIn').value,timerSec:$('#timerIn').value,forgiving:$('#plurIn').checked});
+  }
+
+  $('#tabPlayer').addEventListener('click',function(){ setHostMode(false); });
+  $('#tabHost').addEventListener('click',function(){ setHostMode(true); });
+  $('#loginBtn').addEventListener('click',function(){ submitAuth('login'); });
+  $('#signupBtn').addEventListener('click',function(){ submitAuth('signup'); });
+  ['#uIn','#pIn'].forEach(function(id){ $(id).addEventListener('keydown',function(e){ if(e.key==='Enter') submitAuth('login'); }); });
+  $('#logoutBtn').addEventListener('click',async function(){ await api('/api/logout'); showAuth(); });
+  $('#lockBtn').addEventListener('click',lockWord);
+  $('#wordIn').addEventListener('keydown',function(e){ if(e.key==='Enter') lockWord(); });
+  $('#startBtn').addEventListener('click',startRound);
+  $('#hostLockBtn').addEventListener('click',hostLock);
+  $('#modeIn').addEventListener('change',function(){ modeTouched=true; showModeHint(); });
+  $('#hostWordIn').addEventListener('keydown',function(e){ if(e.key==='Enter') hostLock(); });
+  $('#newBtn').addEventListener('click',armNew);
+  $('#revealBtn').addEventListener('click',function(){ api('/api/admin/reveal'); });
+  $('#shuffleBtn').addEventListener('click',function(){ $('#promptIn').value=randPrompt(); });
+  $('#aRoster').addEventListener('click',function(e){ var id=e.target.getAttribute&&e.target.getAttribute('data-rm'); if(id) api('/api/admin/remove',{id:id}); });
+  $('#copyBtn').addEventListener('click',function(){ var b=$('#linkBox'); b.select(); try{ navigator.clipboard.writeText(b.value); $('#copyBtn').textContent='Copied'; setTimeout(function(){ $('#copyBtn').textContent='Copy link'; },1500); }catch(e){} });
+
+  fetch('/api/me').then(function(r){return r.json();}).then(function(m){ if(m.role) connect(); else showAuth(); }).catch(function(){ showAuth('Could not reach the server.'); });
+})();
+</script>
+</body>
+</html>
