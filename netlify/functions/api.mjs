@@ -14,8 +14,8 @@ const TIMERS = [0, 20, 30, 45, 60];
 const hashPw = async (pw, salt) => (await scrypt(pw, salt, 64)).toString('hex');
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
 
-function newGame(lives = 3, timerSec = 0, forgiving = true, gameId = 0) {
-  return { gameId, round: 0, phase: 'lobby', prompt: '', lives, timerSec, forgiving, endsAt: 0, scores: {}, results: [], finished: false, winners: [] };
+function newGame(lives = 3, timerSec = 0, forgiving = true, gameId = 0, mode = 'players') {
+  return { gameId, round: 0, phase: 'lobby', prompt: '', lives, timerSec, forgiving, mode, endsAt: 0, scores: {}, results: [], finished: false, winners: [] };
 }
 function normKey(w, forgiving) {
   let k = String(w).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
@@ -76,12 +76,16 @@ export function createHandler(store) {
       const eligible = roster.filter(u => live(g, u.id));
       const subs = await Promise.all(eligible.map(u => getJ('sub/' + u.id)));
       const entries = eligible.map((u, i) => { const s = subOk(g, subs[i]); return { u, s, k: s ? normKey(s.word, g.forgiving) : '' }; });
+      const hw = await getJ('hostword');
+      const hostMode = g.mode === 'host';
+      const hostKey = hostMode && hw && hw.gameId === g.gameId && hw.round === g.round ? normKey(hw.word, g.forgiving) : '';
       const counts = {};
       entries.forEach(e => { if (e.k) counts[e.k] = (counts[e.k] || 0) + 1; });
+      if (hostKey) counts[hostKey] = (counts[hostKey] || 0) + 1;
       const scores = { ...g.scores };
-      const results = entries.map(e => {
+      const playerResults = entries.map(e => {
         const c = scores[e.u.id] || { name: e.u.name, points: 0, lives: g.lives };
-        const status = !e.k ? 'missed' : (counts[e.k] > 1 ? 'collision' : 'safe');
+        const status = !e.k ? 'missed' : (hostMode ? (hostKey && e.k === hostKey ? 'collision' : 'safe') : (counts[e.k] > 1 ? 'collision' : 'safe'));
         scores[e.u.id] = { name: e.u.name, points: c.points + (status === 'safe' ? 1 : 0), lives: c.lives - (status === 'safe' ? 0 : 1) };
         return { uid: e.u.id, name: e.u.name, word: e.s ? e.s.word : '', key: e.k, status };
       });
@@ -92,10 +96,11 @@ export function createHandler(store) {
         finished = true;
         if (alive.length === 1) winners = [scores[alive[0]].name];
         else {
-          const max = Math.max(...results.map(r => scores[r.uid].points));
-          winners = results.filter(r => scores[r.uid].points === max).map(r => r.name);
+          const max = Math.max(...playerResults.map(r => scores[r.uid].points));
+          winners = playerResults.filter(r => scores[r.uid].points === max).map(r => r.name);
         }
       }
+      const results = hostKey ? [{ uid: 'host', name: 'Host', word: clean(hw.word, 30), key: hostKey, status: 'host' }, ...playerResults] : playerResults;
       return { ...g, phase: 'revealed', endsAt: 0, scores, results, finished, winners };
     });
   }
@@ -108,7 +113,7 @@ export function createHandler(store) {
     const out = {
       serverNow: Date.now(), role: s.role,
       board: roster.map(u => { const sc = g.scores[u.id]; return { id: u.id, name: u.name, lives: sc ? sc.lives : g.lives, points: sc ? sc.points : 0 }; }),
-      game: { gameId: g.gameId, round: g.round, phase: g.phase, prompt: g.prompt, lives: g.lives, timerSec: g.timerSec, forgiving: g.forgiving, endsAt: g.endsAt, results: g.results, finished: g.finished, winners: g.winners }
+      game: { gameId: g.gameId, round: g.round, phase: g.phase, prompt: g.prompt, lives: g.lives, timerSec: g.timerSec, forgiving: g.forgiving, mode: g.mode || 'players', endsAt: g.endsAt, results: g.results, finished: g.finished, winners: g.winners }
     };
     if (s.role === 'player') {
       const sub = subOk(g, await getJ('sub/' + s.userId));
@@ -118,6 +123,8 @@ export function createHandler(store) {
       const eligible = roster.filter(u => live(g, u.id));
       const subs = await Promise.all(eligible.map(u => getJ('sub/' + u.id)));
       out.progress = eligible.map((u, i) => ({ id: u.id, name: u.name, done: !!subOk(g, subs[i]) }));
+      const hw = await getJ('hostword');
+      out.hostWord = hw && g.phase === 'open' && g.mode === 'host' && hw.gameId === g.gameId && hw.round === g.round ? hw.word : '';
     }
     return out;
   }
@@ -198,12 +205,27 @@ export function createHandler(store) {
             const lives = g.round === 0 ? Math.max(1, Math.min(9, parseInt(body.lives, 10) || 3)) : g.lives;
             const scores = { ...g.scores };
             roster.forEach(u => { const p = g.scores[u.id]; scores[u.id] = p ? { name: u.name, points: p.points, lives: p.lives } : { name: u.name, points: 0, lives }; });
-            return { ...g, gameId: g.gameId || Date.now(), round: g.round + 1, phase: 'open', prompt, lives, timerSec, forgiving: !!body.forgiving, endsAt: timerSec ? Date.now() + timerSec * 1000 : 0, scores, results: [], winners: [], finished: false };
+            return { ...g, gameId: g.gameId || Date.now(), round: g.round + 1, phase: 'open', prompt, lives, timerSec, forgiving: !!body.forgiving, mode: body.mode === 'host' ? 'host' : 'players', endsAt: timerSec ? Date.now() + timerSec * 1000 : 0, scores, results: [], winners: [], finished: false };
           });
+          return json({ ok: true });
+        }
+        case '/api/admin/hostword': {
+          await needRole(req, 'admin');
+          const g = await getGame();
+          if (g.phase !== 'open') throw new HttpError(409, 'No round is open.');
+          if (g.mode !== 'host') throw new HttpError(409, 'This round does not use a host word.');
+          const word = clean(body.word, 30);
+          if (!word) throw new HttpError(400, 'Type a word first.');
+          await store.setJSON('hostword', { gameId: g.gameId, round: g.round, word });
           return json({ ok: true });
         }
         case '/api/admin/reveal': {
           await needRole(req, 'admin');
+          const cur = await getGame();
+          if (cur.phase === 'open' && cur.mode === 'host') {
+            const hw = await getJ('hostword');
+            if (!(hw && hw.gameId === cur.gameId && hw.round === cur.round && normKey(hw.word, true))) throw new HttpError(409, 'Lock in your own word first. In this mode players lose a life for saying it.');
+          }
           if (!(await doReveal())) throw new HttpError(409, 'No round is open.');
           return json({ ok: true });
         }
@@ -211,9 +233,10 @@ export function createHandler(store) {
           await needRole(req, 'admin');
           const lives = Math.max(1, Math.min(9, parseInt(body.lives, 10) || 3));
           const timerSec = TIMERS.includes(+body.timerSec) ? +body.timerSec : 0;
-          await store.setJSON('game', newGame(lives, timerSec, !!body.forgiving, Date.now()));
+          await store.setJSON('game', newGame(lives, timerSec, !!body.forgiving, Date.now(), body.mode === 'host' ? 'host' : 'players'));
           const l = await store.list({ prefix: 'sub/' });
           await Promise.all(l.blobs.map(b => store.delete(b.key)));
+          await store.delete('hostword');
           return json({ ok: true });
         }
         case '/api/admin/remove': {
