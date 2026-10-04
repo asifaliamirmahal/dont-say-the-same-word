@@ -25,7 +25,8 @@ function normKey(w, forgiving) {
 const live = (g, id) => { const s = g.scores[id]; return !s || s.lives > 0; };
 const subOk = (g, s) => (s && s.gameId === g.gameId && s.round === g.round && s.word ? s : null);
 
-export function createHandler(store) {
+export function createHandler(store, opts = {}) {
+  const doFetch = opts.fetch || fetch;
   const getJ = k => store.get(k, { type: 'json' });
   const getGame = async () => (await getJ('game')) || newGame();
   const getRoster = async () => ((await getJ('roster')) || { users: [] }).users;
@@ -64,6 +65,12 @@ export function createHandler(store) {
     if (p.r === 'admin') return { role: 'admin' };
     const u = await getJ('user/' + p.u);
     return u ? { role: 'player', userId: u.id, user: u } : null;
+  }
+  function authLite(req) {
+    if (!configured()) return null;
+    const p = verify(cookieOf(req));
+    if (!p) return null;
+    return p.r === 'admin' ? { role: 'admin' } : { role: 'player', userId: p.u };
   }
   const needConfig = () => { if (!configured()) throw new HttpError(503, 'The host password is not set on the server yet.'); };
   const needRole = async (req, role) => { const s = await auth(req); if (!s || s.role !== role) throw new HttpError(401, role === 'admin' ? 'Log in as the host.' : 'Log in as a player.'); return s; };
@@ -106,24 +113,25 @@ export function createHandler(store) {
   }
 
   async function state(s) {
-    let g = await getGame();
+    // Read everything at once. Each read waits on the network, so doing them one after another is slow.
+    let [g, roster, ownSub] = await Promise.all([getGame(), getRoster(), s.role === 'player' ? getJ('sub/' + s.userId) : null]);
+    const me = s.role === 'player' ? roster.find(u => u.id === s.userId) : null;
+    if (s.role === 'player' && !me) throw new HttpError(401, 'Log in first.');
     // No background process on Netlify, so the timer is enforced whenever anyone checks in.
     if (g.phase === 'open' && g.endsAt && Date.now() > g.endsAt + 1500) { await doReveal(); g = await getGame(); }
-    const roster = await getRoster();
     const out = {
       serverNow: Date.now(), role: s.role,
       board: roster.map(u => { const sc = g.scores[u.id]; return { id: u.id, name: u.name, lives: sc ? sc.lives : g.lives, points: sc ? sc.points : 0 }; }),
       game: { gameId: g.gameId, round: g.round, phase: g.phase, prompt: g.prompt, lives: g.lives, timerSec: g.timerSec, forgiving: g.forgiving, mode: g.mode || 'players', endsAt: g.endsAt, results: g.results, finished: g.finished, winners: g.winners }
     };
     if (s.role === 'player') {
-      const sub = subOk(g, await getJ('sub/' + s.userId));
-      out.me = { id: s.userId, name: s.user.username, word: sub ? sub.word : '' };
+      const sub = subOk(g, ownSub);
+      out.me = { id: s.userId, name: me.name, word: sub ? sub.word : '' };
     }
     if (s.role === 'admin') {
       const eligible = roster.filter(u => live(g, u.id));
-      const subs = await Promise.all(eligible.map(u => getJ('sub/' + u.id)));
+      const [hw, ...subs] = await Promise.all([getJ('hostword'), ...eligible.map(u => getJ('sub/' + u.id))]);
       out.progress = eligible.map((u, i) => ({ id: u.id, name: u.name, done: !!subOk(g, subs[i]) }));
-      const hw = await getJ('hostword');
       out.hostWord = hw && g.phase === 'open' && g.mode === 'host' && hw.gameId === g.gameId && hw.round === g.round ? hw.word : '';
     }
     return out;
@@ -135,7 +143,7 @@ export function createHandler(store) {
       const path = new URL(req.url).pathname.replace(/\/+$/, '');
       if (req.method === 'GET' && path === '/api/me') { const s = await auth(req); return json({ role: s ? s.role : null }); }
       if (req.method === 'GET' && path === '/api/state') {
-        const s = await auth(req);
+        const s = authLite(req);
         if (!s) throw new HttpError(401, 'Log in first.');
         return json(await state(s));
       }
@@ -183,8 +191,10 @@ export function createHandler(store) {
           return json({ ok: true }, 200, { 'Set-Cookie': cookie(req, '', 0) });
 
         case '/api/word': {
-          const s = await needRole(req, 'player');
-          const g = await getGame();
+          const s = authLite(req);
+          if (!s || s.role !== 'player') throw new HttpError(401, 'Log in as a player.');
+          const [u, g] = await Promise.all([getJ('user/' + s.userId), getGame()]);
+          if (!u) throw new HttpError(401, 'Log in as a player.');
           if (g.phase !== 'open') throw new HttpError(409, 'No round is open.');
           if (g.endsAt && Date.now() > g.endsAt + 1000) throw new HttpError(409, 'Time is up for this round.');
           if (!live(g, s.userId)) throw new HttpError(403, 'You are out of lives.');
@@ -218,6 +228,40 @@ export function createHandler(store) {
           if (!word) throw new HttpError(400, 'Type a word first.');
           await store.setJSON('hostword', { gameId: g.gameId, round: g.round, word });
           return json({ ok: true });
+        }
+        case '/api/admin/suggest': {
+          await needRole(req, 'admin');
+          const key = process.env.ANTHROPIC_API_KEY;
+          if (!key) throw new HttpError(503, 'AI prompts are not set up yet.');
+          const theme = clean(body.theme, 40);
+          const avoid = Array.isArray(body.avoid) ? body.avoid.slice(0, 12).map(x => clean(x, 80)).filter(Boolean) : [];
+          const instruction = [
+            'Write 6 short prompts for a party game where every player secretly says one word and players who say the same word lose a life.',
+            'Each prompt is a category or situation that many different people could answer with a single word, for example "A fruit" or "Something you find in a kitchen".',
+            'Make them easy to understand, varied, safe for all ages, and under 8 words each.',
+            theme ? 'Theme: ' + theme + '.' : '',
+            avoid.length ? 'Do not repeat or closely copy these: ' + avoid.join('; ') + '.' : '',
+            'Reply with only a JSON array of 6 strings and nothing else.'
+          ].filter(Boolean).join(' ');
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 8000);
+          let r;
+          try {
+            r = await doFetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST', signal: ctrl.signal,
+              headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+              body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001', max_tokens: 400, messages: [{ role: 'user', content: instruction }] })
+            });
+          } catch (e) { throw new HttpError(502, 'The AI service did not respond in time.'); }
+          finally { clearTimeout(timer); }
+          if (!r.ok) throw new HttpError(502, 'The AI service refused the request. Check the API key and credits.');
+          let text = '';
+          try { const data = await r.json(); text = (data.content || []).map(c => c.text || '').join(''); } catch (e) { /* handled below */ }
+          let list = [];
+          try { const m = text.match(/\[[\s\S]*\]/); list = JSON.parse(m ? m[0] : text); } catch (e) { /* handled below */ }
+          list = (Array.isArray(list) ? list : []).map(x => clean(typeof x === 'string' ? x : '', 80).replace(/^["']|["']$/g, '')).filter(x => x.length >= 3).slice(0, 8);
+          if (!list.length) throw new HttpError(502, 'The AI service returned nothing usable. Try again.');
+          return json({ prompts: list });
         }
         case '/api/admin/reveal': {
           await needRole(req, 'admin');
