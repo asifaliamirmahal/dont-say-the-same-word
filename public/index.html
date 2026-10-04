@@ -80,6 +80,8 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
 .g{border-radius:18px;padding:14px 16px;border:2px solid var(--line);background:var(--surface);animation:slam .45s cubic-bezier(.2,1.4,.4,1) both;animation-delay:calc(var(--i)*80ms)}
 .g.collision{background:var(--pink-soft);border-color:var(--pink)}
 .g.safe{background:var(--mint-soft);border-color:var(--mint)}
+.g.host{background:var(--sun);border-color:#2A1550;color:#2A1550}
+.g.host .gn{color:#2A1550}
 .g .gw{font:800 28px/1.05 'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-.02em;overflow-wrap:anywhere}
 .g .gm{font-size:14px;font-weight:600;margin-top:6px}
 .g .gn{font-size:14px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
@@ -154,6 +156,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
         <div class="timer" id="pTimer" hidden></div>
       </div>
       <div class="card stack" style="margin-top:16px" id="pForm">
+        <p id="pRule"></p>
         <div>
           <label class="f" for="wordIn">Your word</label>
           <input type="text" class="word" id="wordIn" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -198,6 +201,14 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
             <div><label class="f" for="promptIn">Prompt players answer with one word</label><input type="text" id="promptIn" maxlength="80" autocomplete="off"></div>
             <button class="btn ghost" id="shuffleBtn" type="button">Shuffle prompt</button>
           </div>
+          <div>
+            <label class="f" for="modeIn">Game mode</label>
+            <select id="modeIn">
+              <option value="players">Players against each other</option>
+              <option value="host">Players against the host</option>
+            </select>
+            <p class="small muted" id="modeHint" style="margin-top:6px"></p>
+          </div>
           <div class="grid3">
             <div><label class="f" for="timerIn">Timer</label>
               <select id="timerIn">
@@ -209,6 +220,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
               </select></div>
             <div><label class="f" for="livesIn">Lives each</label><input type="number" id="livesIn" min="1" max="9" value="3"></div>
           </div>
+          <p class="small muted">Set lives to 1 if a collision should knock a player out straight away.</p>
           <label class="check"><input type="checkbox" id="plurIn" checked><span>Count simple plurals as the same word (apple and apples match)</span></label>
           <div class="row">
             <button class="btn pink" id="startBtn" type="button">Start round 1</button>
@@ -225,6 +237,12 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
           </div>
           <p id="aCount" class="small" aria-live="polite"></p>
           <ul class="progress" id="aProgress"></ul>
+          <div class="stack" id="hostWordBox">
+            <div><label class="f" for="hostWordIn">Your word (players must not say it)</label>
+            <input type="text" class="word" id="hostWordIn" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+            <div class="row"><button class="btn ghost" id="hostLockBtn" type="button">Lock in my word</button></div>
+            <p class="small muted" id="hostLocked" aria-live="polite"></p>
+          </div>
           <div class="row"><button class="btn pink" id="revealBtn" type="button">Reveal words</button></div>
           <p class="small muted" id="aTimerNote" hidden>The words reveal automatically when the timer ends.</p>
         </div>
@@ -257,7 +275,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
   var PROMPTS = ['A fruit','A pizza topping','An animal you would see at a zoo','A colour','A country in Europe','A car brand','A breakfast food','A pet','A sport played with a ball','A Bollywood movie','A vegetable','A cricketer','A city in India','A musical instrument','Something you find in a kitchen','A superhero','A drink','A programming language','A month of the year','Something you carry in a bag','A school subject','A fast food chain','A flower','A body part','A street food','A thing that is round','A dessert','A job','Something that flies','A board game','A type of weather','A festival','A social media app','A mode of transport','Something you do on weekends'];
 
-  var st=null, polling=false, pollTimer=null, offset=0, hostMode=false, inputKey='', lastPrompt='', newArmed=false, newTimer=null, busy=false;
+  var modeTouched=false, hostInputKey='', st=null, polling=false, pollTimer=null, offset=0, hostMode=false, inputKey='', lastPrompt='', newArmed=false, newTimer=null, busy=false;
 
   function randPrompt(){ var p,t=0; do{ p=PROMPTS[Math.floor(Math.random()*PROMPTS.length)]; t++; }while(p===lastPrompt&&t<8); lastPrompt=p; return p; }
   function banner(m){ var b=$('#banner'); if(!m){ b.hidden=true; return; } b.textContent=m; b.hidden=false; }
@@ -336,15 +354,22 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
     var by={}, order=[], missed=[];
     g.results.forEach(function(r){
       if(r.status==='missed'){ missed.push(r); return; }
-      if(!by[r.key]){ by[r.key]={word:r.word,names:[],status:r.status}; order.push(r.key); }
-      by[r.key].names.push(r.name);
+      if(!by[r.key]){ by[r.key]={word:r.word,names:[],collision:false,host:false,players:0}; order.push(r.key); }
+      var x=by[r.key];
+      if(r.uid==='host'){ x.host=true; x.names.unshift('Host'); x.word=r.word; }
+      else { x.players++; x.names.push(r.name); if(r.status==='collision') x.collision=true; }
     });
-    order.sort(function(a,b){ var A=by[a],B=by[b]; if(A.status!==B.status) return A.status==='collision'?-1:1; return B.names.length-A.names.length; });
+    order.sort(function(a,b){ var A=by[a],B=by[b]; if(A.collision!==B.collision) return A.collision?-1:1; return B.names.length-A.names.length; });
     var i=0, html='';
     order.forEach(function(k){
       var x=by[k];
-      var msg=x.status==='collision'?(x.names.length+' players matched. Each loses a life.'):'Only one said it. +1 point.';
-      html+='<div class="g '+x.status+'" style="--i:'+(i++)+'"><div class="gw">'+esc(x.word)+'</div><div class="gm">'+msg+'</div><div class="gn">'+x.names.map(esc).join(', ')+'</div></div>';
+      var cls=x.collision?'collision':(x.players?'safe':'host');
+      var msg;
+      if(x.collision) msg=x.host?'Matched the host. Each player loses a life.':(x.players+' players matched. Each loses a life.');
+      else if(!x.players) msg='The host\u2019s word. Nobody said it.';
+      else if(x.players>1) msg='Same word, but it was not the host\u2019s. +1 point each.';
+      else msg='Safe. +1 point.';
+      html+='<div class="g '+cls+'" style="--i:'+(i++)+'"><div class="gw">'+esc(x.word)+'</div><div class="gm">'+msg+'</div><div class="gn">'+x.names.map(esc).join(', ')+'</div></div>';
     });
     if(missed.length) html+='<div class="g collision" style="--i:'+(i++)+'"><div class="gw">No word</div><div class="gm">Did not lock in. Each loses a life.</div><div class="gn">'+missed.map(function(r){return esc(r.name);}).join(', ')+'</div></div>';
     el.innerHTML=html||'<p class="muted">Nobody played this round.</p>';
@@ -377,6 +402,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
       $('#pRound').textContent='Round '+g.round;
       $('#pPrompt').textContent=g.prompt;
       $('#pForm').hidden=out; $('#pOut').hidden=!out;
+      $('#pRule').textContent=g.mode==='host'?'Do not say the same word as the host. Everyone else is safe.':'Do not say the same word as another player.';
       var inp=$('#wordIn'), k=g.gameId+':'+g.round;
       if(k!==inputKey){ inputKey=k; inp.value=me.word||''; }
       else if(me.word && !inp.value && document.activeElement!==inp) inp.value=me.word;
@@ -387,8 +413,15 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
       $('#pRevealTitle').textContent='Round '+g.round+': '+g.prompt;
       var r=g.results.filter(function(x){return x.uid===me.id;})[0], box=$('#pResult');
       if(!r){ box.className='result'; box.innerHTML='<h2>You sat this round out</h2><p class="muted" style="margin-top:8px">'+(out?'You are out of lives.':'You joined after the round started.')+'</p>'; }
-      else if(r.status==='safe'){ box.className='result safe'; box.innerHTML='<h2>Safe</h2><p style="margin-top:8px">Nobody else said \u201c'+esc(r.word)+'\u201d. You get a point.</p>'; }
-      else if(r.status==='collision'){ var n=g.results.filter(function(x){return x.key===r.key;}).length-1; box.className='result collision'; box.innerHTML='<h2>Collision</h2><p style="margin-top:8px">'+n+(n===1?' other player':' other players')+' also said \u201c'+esc(r.word)+'\u201d. You lose a life.</p>'; }
+      else if(r.status==='safe'){ box.className='result safe'; box.innerHTML='<h2>Safe</h2><p style="margin-top:8px">'+(g.mode==='host'?'You did not say the host\u2019s word. You get a point.':'Nobody else said \u201c'+esc(r.word)+'\u201d. You get a point.')+'</p>'; }
+      else if(r.status==='collision'){
+        var others=g.results.filter(function(x){return x.key===r.key&&x.uid!==me.id&&x.uid!=='host';}).length;
+        var hm=g.results.some(function(x){return x.uid==='host'&&x.key===r.key;});
+        var plural=others+(others===1?' other player':' other players');
+        var q='\u201c'+esc(r.word)+'\u201d';
+        var txt=g.mode==='host'?('You said the host\u2019s word: '+q+'. You lose a life.'):hm?(others?('You matched the host and '+plural+' with '+q+'. You lose a life.'):('You said the same word as the host: '+q+'. You lose a life.')):(plural+' also said '+q+'. You lose a life.');
+        box.className='result collision'; box.innerHTML='<h2>Collision</h2><p style="margin-top:8px">'+txt+'</p>';
+      }
       else { box.className='result missed'; box.innerHTML='<h2>No word</h2><p style="margin-top:8px">You did not lock in a word in time. You lose a life.</p>'; }
       renderGroups($('#pGroups'),g);
       var w=$('#pWinner'); if(g.finished){ w.hidden=false; w.innerHTML=winnerHtml(g,'The game is over. The host can start a new one.'); } else w.hidden=true;
@@ -411,6 +444,8 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
       if(!newArmed) $('#newBtn').textContent='Start a new game';
       var locked=g.round>0&&!g.finished;
       $('#livesIn').disabled=locked;
+      if(!modeTouched) $('#modeIn').value=g.mode||'players';
+      showModeHint();
       if(!$('#promptIn').value&&!g.finished) $('#promptIn').value=randPrompt();
       $('#startBtn').disabled=st.board.length<2;
       $('#startHint').textContent=st.board.length<2?'You need at least 2 players to start a round.':(locked?'Lives are fixed once a game has started.':'');
@@ -421,6 +456,14 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
       $('#aCount').textContent=done+' of '+st.progress.length+' players have locked in a word.';
       $('#aProgress').innerHTML=st.progress.map(function(p){ return '<li class="'+(p.done?'done':'')+'">'+esc(p.name)+(p.done?' \u2713':'')+'</li>'; }).join('');
       $('#aTimerNote').hidden=!g.endsAt;
+      var hostMode=g.mode==='host';
+      $('#hostWordBox').hidden=!hostMode;
+      $('#revealBtn').disabled=hostMode&&!st.hostWord;
+      var hin=$('#hostWordIn'), hk=g.gameId+':'+g.round;
+      if(hk!==hostInputKey){ hostInputKey=hk; hin.value=st.hostWord||''; }
+      else if(st.hostWord && !hin.value && document.activeElement!==hin) hin.value=st.hostWord;
+      $('#hostLockBtn').textContent=st.hostWord?'Change my word':'Lock in my word';
+      $('#hostLocked').textContent=st.hostWord?('Locked in: '+st.hostWord+'. Any player who says it loses a life. You can change it until you reveal.'):'Lock in your word before you reveal. Any player who says it loses a life.';
     }
     if(phase==='revealed'){ $('#aResultsTitle').textContent='Round '+g.round+': '+g.prompt; renderGroups($('#aGroups'),g); }
     $('#aRoster').innerHTML=boardHtml(true);
@@ -443,15 +486,25 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
     if(!w){ $('#wordIn').focus(); return; }
     api('/api/word',{word:w});
   }
+  function showModeHint(){
+    $('#modeHint').textContent=$('#modeIn').value==='host'
+      ? 'You lock in a word. Only players who say the same word as you lose a life.'
+      : 'Players who say the same word as another player lose a life.';
+  }
+  function hostLock(){
+    var w=$('#hostWordIn').value.replace(/\s+/g,' ').trim();
+    if(!w){ $('#hostWordIn').focus(); return; }
+    api('/api/admin/hostword',{word:w});
+  }
   function startRound(){
     var p=$('#promptIn').value.trim(); if(!p){ $('#promptIn').focus(); return; }
-    api('/api/admin/start',{prompt:p,timerSec:$('#timerIn').value,lives:$('#livesIn').value,forgiving:$('#plurIn').checked}).then(function(r){ if(r) $('#promptIn').value=''; });
+    api('/api/admin/start',{prompt:p,mode:$('#modeIn').value,timerSec:$('#timerIn').value,lives:$('#livesIn').value,forgiving:$('#plurIn').checked}).then(function(r){ if(r) $('#promptIn').value=''; });
   }
   function armNew(){
     var b=$('#newBtn');
-    if(!newArmed){ newArmed=true; b.textContent='Click again to reset scores'; clearTimeout(newTimer); newTimer=setTimeout(function(){ newArmed=false; b.textContent='Start a new game'; },4000); return; }
+    if(!newArmed && !(st&&st.game.finished)){ newArmed=true; b.textContent='Click again to reset scores'; clearTimeout(newTimer); newTimer=setTimeout(function(){ newArmed=false; b.textContent='Start a new game'; },4000); return; }
     newArmed=false; clearTimeout(newTimer); b.textContent='Start a new game';
-    api('/api/admin/new-game',{lives:$('#livesIn').value,timerSec:$('#timerIn').value,forgiving:$('#plurIn').checked});
+    api('/api/admin/new-game',{mode:$('#modeIn').value,lives:$('#livesIn').value,timerSec:$('#timerIn').value,forgiving:$('#plurIn').checked});
   }
 
   $('#tabPlayer').addEventListener('click',function(){ setHostMode(false); });
@@ -463,6 +516,9 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   $('#lockBtn').addEventListener('click',lockWord);
   $('#wordIn').addEventListener('keydown',function(e){ if(e.key==='Enter') lockWord(); });
   $('#startBtn').addEventListener('click',startRound);
+  $('#hostLockBtn').addEventListener('click',hostLock);
+  $('#modeIn').addEventListener('change',function(){ modeTouched=true; showModeHint(); });
+  $('#hostWordIn').addEventListener('keydown',function(e){ if(e.key==='Enter') hostLock(); });
   $('#newBtn').addEventListener('click',armNew);
   $('#revealBtn').addEventListener('click',function(){ api('/api/admin/reveal'); });
   $('#shuffleBtn').addEventListener('click',function(){ $('#promptIn').value=randPrompt(); });
