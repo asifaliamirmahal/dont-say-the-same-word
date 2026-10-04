@@ -1,0 +1,8 @@
+{
+  "name": "dont-say-the-same-word-netlify",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multiplayer word game with host login and player accounts, for Netlify",
+  "dependencies": { "@netlify/blobs": "^11.1.3" }
+}
