@@ -197,9 +197,15 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
 
         <div class="card stack" id="aSetup">
           <h2 id="aSetupTitle">Next round</h2>
-          <div id="aPromptWrap" class="row grow">
-            <div><label class="f" for="promptIn">Prompt players answer with one word</label><input type="text" id="promptIn" maxlength="80" autocomplete="off"></div>
-            <button class="btn ghost" id="shuffleBtn" type="button">Shuffle prompt</button>
+          <div id="aPromptWrap" class="stack">
+            <div class="row grow">
+              <div><label class="f" for="promptIn">Prompt players answer with one word</label><input type="text" id="promptIn" maxlength="80" autocomplete="off"></div>
+              <button class="btn ghost" id="shuffleBtn" type="button">Shuffle prompt</button>
+            </div>
+            <div class="row grow">
+              <div><label class="f" for="themeIn">Theme for AI prompts (optional)</label><input type="text" id="themeIn" maxlength="40" autocomplete="off" placeholder="for example: Indian food, movies, school"></div>
+              <button class="btn ghost" id="aiBtn" type="button">Suggest with AI</button>
+            </div>
           </div>
           <div>
             <label class="f" for="modeIn">Game mode</label>
@@ -343,7 +349,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
       render();
     }catch(e){ banner('Reconnecting to the game...'); }
     if(polling){
-      var delay=document.hidden?8000:((st&&st.game.phase==='open')?1500:2500);
+      var delay=document.hidden?8000:((st&&st.game.phase==='open')?1000:1500);
       pollTimer=setTimeout(poll,delay);
     }
   }
@@ -494,7 +500,28 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   function lockWord(){
     var w=$('#wordIn').value.replace(/\s+/g,' ').trim();
     if(!w){ $('#wordIn').focus(); return; }
-    api('/api/word',{word:w});
+    if(st&&st.me){ st.me.word=w; renderPlayer(); }
+    api('/api/word',{word:w}).then(function(r){ if(!r) poll(); });
+  }
+  var aiQueue=[], aiTheme='', aiBusy=false, recentPrompts=[];
+  async function suggestAI(){
+    if(aiBusy) return;
+    var theme=$('#themeIn').value.trim();
+    if(theme!==aiTheme){ aiQueue=[]; aiTheme=theme; }
+    if(!aiQueue.length){
+      aiBusy=true; $('#aiBtn').disabled=true; $('#aiBtn').textContent='Thinking...';
+      var r=await api('/api/admin/suggest',{theme:theme,avoid:recentPrompts.slice(-10)});
+      aiBusy=false; $('#aiBtn').disabled=false; $('#aiBtn').textContent='Suggest with AI';
+      if(r&&r.prompts&&r.prompts.length) aiQueue=r.prompts.slice();
+      else {
+        var m=$('#banner').textContent||'AI prompts are not available.';
+        banner(m+' A prompt from the built-in list was used instead.');
+        $('#promptIn').value=randPrompt();
+        return;
+      }
+    }
+    var next=aiQueue.shift();
+    $('#promptIn').value=next; recentPrompts.push(next);
   }
   function showModeHint(){
     $('#modeHint').textContent=$('#modeIn').value==='host'
@@ -504,10 +531,12 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   function hostLock(){
     var w=$('#hostWordIn').value.replace(/\s+/g,' ').trim();
     if(!w){ $('#hostWordIn').focus(); return; }
-    api('/api/admin/hostword',{word:w});
+    if(st){ st.hostWord=w; renderHost(); }
+    api('/api/admin/hostword',{word:w}).then(function(r){ if(!r) poll(); });
   }
   function startRound(){
     var p=$('#promptIn').value.trim(); if(!p){ $('#promptIn').focus(); return; }
+    recentPrompts.push(p);
     api('/api/admin/start',{prompt:p,mode:$('#modeIn').value,timerSec:$('#timerIn').value,lives:$('#livesIn').value,forgiving:$('#plurIn').checked}).then(function(r){ if(r) $('#promptIn').value=''; });
   }
   function armNew(){
@@ -531,6 +560,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   $('#hostWordIn').addEventListener('keydown',function(e){ if(e.key==='Enter') hostLock(); });
   $('#newBtn').addEventListener('click',armNew);
   $('#revealBtn').addEventListener('click',function(){ api('/api/admin/reveal'); });
+  $('#aiBtn').addEventListener('click',suggestAI);
   $('#shuffleBtn').addEventListener('click',function(){ $('#promptIn').value=randPrompt(); });
   $('#aRoster').addEventListener('click',function(e){ var id=e.target.getAttribute&&e.target.getAttribute('data-rm'); if(id) api('/api/admin/remove',{id:id}); });
   $('#copyBtn').addEventListener('click',function(){ var b=$('#linkBox'); b.select(); try{ navigator.clipboard.writeText(b.value); $('#copyBtn').textContent='Copied'; setTimeout(function(){ $('#copyBtn').textContent='Copy link'; },1500); }catch(e){} });
