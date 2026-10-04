@@ -502,7 +502,7 @@ input.word{font:800 clamp(26px,7vw,38px) 'Bricolage Grotesque','Instrument Sans'
   }
   function armNew(){
     var b=$('#newBtn');
-    if(!newArmed){ newArmed=true; b.textContent='Click again to reset scores'; clearTimeout(newTimer); newTimer=setTimeout(function(){ newArmed=false; b.textContent='Start a new game'; },4000); return; }
+    if(!newArmed && !(st&&st.game.finished)){ newArmed=true; b.textContent='Click again to reset scores'; clearTimeout(newTimer); newTimer=setTimeout(function(){ newArmed=false; b.textContent='Start a new game'; },4000); return; }
     newArmed=false; clearTimeout(newTimer); b.textContent='Start a new game';
     api('/api/admin/new-game',{mode:$('#modeIn').value,lives:$('#livesIn').value,timerSec:$('#timerIn').value,forgiving:$('#plurIn').checked});
   }
